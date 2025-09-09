@@ -4,6 +4,7 @@ import jakarta.persistence.*
 import org.springframework.security.core.GrantedAuthority
 import org.springframework.security.core.authority.SimpleGrantedAuthority
 import org.springframework.security.core.userdetails.UserDetails
+import org.springframework.security.oauth2.core.user.OAuth2User
 
 @Entity
 @Table(name = "users")
@@ -22,10 +23,10 @@ data class User(
 
     @Enumerated(EnumType.STRING)
     @Column(name = "provider", nullable = false)
-    val provider: UserProvider = UserProvider.LOCAL,
+    var provider: UserProvider = UserProvider.LOCAL,
 
     @Column(name = "provider_id")
-    val providerId: String? = null,
+    var providerId: String? = null,
 
     var verificationCode: String? = null,
 
@@ -35,9 +36,12 @@ data class User(
         joinColumns = [JoinColumn(name = "user_id")],
         inverseJoinColumns = [JoinColumn(name = "role_id")]
     )
-    var roles: MutableSet<Role> = mutableSetOf()
+    var roles: MutableSet<Role> = mutableSetOf(),
 
-) : UserDetails {
+    @Transient
+    private var attributes: Map<String, Any> = emptyMap()
+
+) : UserDetails, OAuth2User {
 
     override fun getAuthorities(): Collection<GrantedAuthority> {
         return roles.map { SimpleGrantedAuthority(it.name) }
@@ -54,4 +58,12 @@ data class User(
     override fun isCredentialsNonExpired(): Boolean = true
 
     override fun isEnabled(): Boolean = status == AccountStatus.ACTIVE
+
+    override fun getName(): String = email
+
+    override fun getAttributes(): Map<String, Any> = attributes
+
+    fun setAttributes(attributes: Map<String, Any>) {
+        this.attributes = attributes
+    }
 }

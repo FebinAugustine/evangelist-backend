@@ -1,6 +1,9 @@
 package com.febin.evangelist.infrastructure.config
 
+import com.febin.evangelist.infrastructure.security.CustomOAuth2UserService
 import com.febin.evangelist.infrastructure.security.JwtAuthenticationFilter
+import com.febin.evangelist.infrastructure.security.OAuth2AuthenticationFailureHandler
+import com.febin.evangelist.infrastructure.security.OAuth2AuthenticationSuccessHandler
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.core.annotation.Order
@@ -16,7 +19,12 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 
 @Configuration
 @EnableMethodSecurity(prePostEnabled = true)
-class SecurityConfig {
+class SecurityConfig(
+    private val customOAuth2UserService: CustomOAuth2UserService,
+    private val oAuth2AuthenticationSuccessHandler: OAuth2AuthenticationSuccessHandler,
+    private val oAuth2AuthenticationFailureHandler: OAuth2AuthenticationFailureHandler,
+    private val jwtAuthenticationFilter: JwtAuthenticationFilter
+) {
 
     @Bean
     fun passwordEncoder(): PasswordEncoder {
@@ -30,10 +38,10 @@ class SecurityConfig {
 
     @Bean
     @Order(1)
-    fun apiSecurityFilterChain(http: HttpSecurity, jwtAuthenticationFilter: JwtAuthenticationFilter): SecurityFilterChain {
+    fun apiSecurityFilterChain(http: HttpSecurity): SecurityFilterChain {
         http
             .securityMatcher("/api/**")
-            .csrf { it.disable() } // Disable CSRF for stateless API
+            .csrf { it.disable() }
             .authorizeHttpRequests { auth ->
                 auth
                     .requestMatchers("/api/auth/**").permitAll()
@@ -52,8 +60,15 @@ class SecurityConfig {
     fun webSecurityFilterChain(http: HttpSecurity): SecurityFilterChain {
         http
             .authorizeHttpRequests { auth ->
-                auth.anyRequest().permitAll() // Or configure for web-specific flows like OAuth2
+                auth.requestMatchers("/", "/login", "/oauth2/**").permitAll()
+                    .anyRequest().authenticated()
             }
+            .oauth2Login {
+                it.userInfoEndpoint { u -> u.userService(customOAuth2UserService) }
+                it.successHandler(oAuth2AuthenticationSuccessHandler)
+                it.failureHandler(oAuth2AuthenticationFailureHandler)
+            }
+
         return http.build()
     }
 }
