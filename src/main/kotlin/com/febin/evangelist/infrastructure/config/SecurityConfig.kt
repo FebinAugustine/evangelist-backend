@@ -1,5 +1,6 @@
 package com.febin.evangelist.infrastructure.config
 
+import com.febin.evangelist.infrastructure.security.CustomAuthenticationEntryPoint
 import com.febin.evangelist.infrastructure.security.CustomOAuth2UserService
 import com.febin.evangelist.infrastructure.security.JwtAuthenticationFilter
 import com.febin.evangelist.infrastructure.security.OAuth2AuthenticationFailureHandler
@@ -23,7 +24,8 @@ class SecurityConfig(
     private val customOAuth2UserService: CustomOAuth2UserService,
     private val oAuth2AuthenticationSuccessHandler: OAuth2AuthenticationSuccessHandler,
     private val oAuth2AuthenticationFailureHandler: OAuth2AuthenticationFailureHandler,
-    private val jwtAuthenticationFilter: JwtAuthenticationFilter
+    private val jwtAuthenticationFilter: JwtAuthenticationFilter,
+    private val customAuthenticationEntryPoint: CustomAuthenticationEntryPoint // Injected the custom entry point
 ) {
 
     @Bean
@@ -51,6 +53,8 @@ class SecurityConfig(
             }
             .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter::class.java)
+            // Use the custom entry point for authentication errors
+            .exceptionHandling { it.authenticationEntryPoint(customAuthenticationEntryPoint) }
 
         return http.build()
     }

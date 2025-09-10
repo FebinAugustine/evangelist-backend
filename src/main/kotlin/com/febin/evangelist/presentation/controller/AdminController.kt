@@ -1,8 +1,10 @@
 package com.febin.evangelist.presentation.controller
 
+import com.febin.evangelist.application.dto.MessageResponse
 import com.febin.evangelist.application.dto.UpdateUserRolesRequest
 import com.febin.evangelist.application.dto.UserResponse
 import com.febin.evangelist.application.service.AdminService
+import com.febin.evangelist.domain.model.Role
 import jakarta.validation.Valid
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
@@ -32,5 +34,29 @@ class AdminController(
     ): ResponseEntity<UserResponse> {
         val updatedUser = adminService.updateUserRoles(id, request)
         return ResponseEntity.ok(updatedUser)
+    }
+
+    @GetMapping("/roles")
+    fun getAllRoles(): ResponseEntity<List<Role>> {
+        val roles = adminService.getAllRoles()
+        return ResponseEntity.ok(roles)
+    }
+
+    @PostMapping("/users/{id}/disable")
+    fun disableUser(@PathVariable id: Long): ResponseEntity<UserResponse> {
+        val updatedUser = adminService.disableUser(id)
+        return ResponseEntity.ok(updatedUser)
+    }
+
+    @PostMapping("/users/{id}/enable")
+    fun enableUser(@PathVariable id: Long): ResponseEntity<UserResponse> {
+        val updatedUser = adminService.enableUser(id)
+        return ResponseEntity.ok(updatedUser)
+    }
+
+    @DeleteMapping("/users/{id}")
+    fun deleteUser(@PathVariable id: Long): ResponseEntity<MessageResponse> {
+        val messageResponse = adminService.deleteUser(id)
+        return ResponseEntity.ok(messageResponse)
     }
 }

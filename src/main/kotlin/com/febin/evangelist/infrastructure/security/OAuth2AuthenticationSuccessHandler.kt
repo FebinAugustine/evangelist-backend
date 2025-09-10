@@ -1,1 +1,47 @@
-package com.febin.evangelist.infrastructure.security\n\nimport com.febin.evangelist.application.service.RefreshTokenService\nimport jakarta.servlet.http.HttpServletRequest\nimport jakarta.servlet.http.HttpServletResponse\nimport org.springframework.beans.factory.annotation.Value\nimport org.springframework.http.ResponseCookie\nimport org.springframework.security.core.Authentication\nimport org.springframework.security.web.authentication.SimpleUrlAuthenticationSuccessHandler\nimport org.springframework.stereotype.Component\n\n@Component\nclass OAuth2AuthenticationSuccessHandler(\n    private val jwtTokenProvider: JwtTokenProvider,\n    private val refreshTokenService: RefreshTokenService,\n    @Value(\"\${app.oauth2.redirect-uri:http://localhost:3000/}\") private val redirectUri: String\n) : SimpleUrlAuthenticationSuccessHandler() {\n\n    override fun onAuthenticationSuccess(\n        request: HttpServletRequest,\n        response: HttpServletResponse,\n        authentication: Authentication\n    ) {\n        val accessToken = jwtTokenProvider.generateToken(authentication)\n        val refreshToken = refreshTokenService.createRefreshToken(authentication.principal as com.febin.evangelist.domain.model.User)\n\n        val accessTokenCookie = ResponseCookie.from(\"access_token\", accessToken)\n            .httpOnly(true)\n            .secure(true)\n            .path(\"/\")\n            .maxAge(60 * 60) // 1 hour\n            .build()\n\n        val refreshTokenCookie = ResponseCookie.from(\"refresh_token\", refreshToken.token)\n            .httpOnly(true)\n            .secure(true)\n            .path(\"/\")\n            .maxAge(7 * 24 * 60 * 60) // 7 days\n            .build()\n\n        response.addHeader(\"Set-Cookie\", accessTokenCookie.toString())\n        response.addHeader(\"Set-Cookie\", refreshTokenCookie.toString())\n\n        clearAuthenticationAttributes(request)\n        redirectStrategy.sendRedirect(request, response, redirectUri)\n    }\n}\n
+package com.febin.evangelist.infrastructure.security
+
+import com.febin.evangelist.application.service.RefreshTokenService
+import jakarta.servlet.http.HttpServletRequest
+import jakarta.servlet.http.HttpServletResponse
+import org.springframework.beans.factory.annotation.Value
+import org.springframework.http.ResponseCookie
+import org.springframework.security.core.Authentication
+import org.springframework.security.web.authentication.SimpleUrlAuthenticationSuccessHandler
+import org.springframework.stereotype.Component
+
+@Component
+class OAuth2AuthenticationSuccessHandler(
+    private val jwtTokenProvider: JwtTokenProvider,
+    private val refreshTokenService: RefreshTokenService,
+    @Value("\${app.oauth2.redirect-uri:http://localhost:3000/}") private val redirectUri: String
+) : SimpleUrlAuthenticationSuccessHandler() {
+
+    override fun onAuthenticationSuccess(
+        request: HttpServletRequest,
+        response: HttpServletResponse,
+        authentication: Authentication
+    ) {
+        val accessToken = jwtTokenProvider.generateToken(authentication)
+        val refreshToken = refreshTokenService.createRefreshToken(authentication.principal as com.febin.evangelist.domain.model.User)
+
+        val accessTokenCookie = ResponseCookie.from("access_token", accessToken)
+            .httpOnly(true)
+            .secure(true)
+            .path("/")
+            .maxAge(60 * 60) // 1 hour
+            .build()
+
+        val refreshTokenCookie = ResponseCookie.from("refresh_token", refreshToken.token)
+            .httpOnly(true)
+            .secure(true)
+            .path("/")
+            .maxAge(7 * 24 * 60 * 60) // 7 days
+            .build()
+
+        response.addHeader("Set-Cookie", accessTokenCookie.toString())
+        response.addHeader("Set-Cookie", refreshTokenCookie.toString())
+
+        clearAuthenticationAttributes(request)
+        redirectStrategy.sendRedirect(request, response, redirectUri)
+    }
+}

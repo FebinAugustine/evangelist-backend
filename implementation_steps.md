@@ -18,14 +18,23 @@
 3.  **Add the following dependencies:**
     *   Spring Web
     *   Spring Security
+    *   Spring Boot Starter OAuth2 Client
     *   Spring Data JPA
     *   PostgreSQL Driver
-    *   Flyway Migration
+    *   Liquibase Migration
     *   Validation
     *   Spring Boot Starter Mail
     *   Spring Boot Starter Thymeleaf
     *   JSON Web Token (jjwt-api, jjwt-impl, jjwt-jackson)
-4.  **Generate and open the project** in your IDE.
+    *   Bucket4j (for rate limiting)
+4.  **Add the `kotlin-jpa` plugin** to your `build.gradle.kts` file's `plugins` block. This is crucial for generating no-argument constructors for your JPA entities.
+
+    ```kotlin
+    plugins {
+        // ... other plugins
+        alias(libs.plugins.kotlin.jpa)
+    }
+    ```
 
 ---
 
@@ -33,9 +42,10 @@
 
 1.  **Configure `application.properties`:**
     *   Set up the `spring.datasource.*` properties to connect to your local PostgreSQL database (`authdb`).
-    *   Configure `spring.jpa.hibernate.ddl-auto` to `validate` to ensure Hibernate checks the schema against Flyway migrations.
-    *   Set up the `spring.mail.*` properties with your SMTP server details (e.g., Gmail with an App Password).
-    *   Define custom properties for JWT secrets and application URLs (`jwt.secret`, `app.base-url`, etc.).
+    *   Configure `spring.jpa.hibernate.ddl-auto` to `validate` to ensure Hibernate checks the schema against Liquibase migrations.
+    *   Set up the `spring.liquibase.change-log` property to point to your master changelog file (e.g., `classpath:/db/changelog/db.changelog-master.xml`).
+    *   Set up the `spring.mail.*` properties with your SMTP server details. Use an environment variable for the password (e.g., `spring.mail.password=${SPRING_MAIL_PASSWORD}`).
+    *   Define custom properties for JWT secrets. The secret **must** be a valid, standard Base64-encoded string of at least 256 bits.
 2.  **Set up the Database:**
     *   Create the initial PostgreSQL database: `CREATE DATABASE authdb;`
 
@@ -44,51 +54,54 @@
 ### Step 2: Establish the Domain Layer (The Core)
 
 1.  **Create Core Entities:**
-    *   In the `domain.model` package, create the following Kotlin data classes as JPA entities:
-        *   `User.kt`: Must implement Spring Security's `UserDetails`.
+    *   In the `domain.model` package, create the following Kotlin classes as JPA entities. **Important:** Use a regular `class`, not a `data class`, for entities to avoid JVM signature clashes.
+        *   `User.kt`: Must implement `UserDetails` and `OAuth2User`. Use private properties (e.g., `_email`, `_password`) and public getters to satisfy the interfaces. Add fields for verification and password reset tokens.
         *   `Role.kt`
         *   `AccountStatus.kt` (as an enum: `UNVERIFIED`, `ACTIVE`, `DISABLED`).
-        *   `UserProvider.kt`
+        *   `UserProvider.kt` (as an enum: `LOCAL`, `GOOGLE`, `GITHUB`).
         *   `RefreshToken.kt`
 2.  **Define Repository Interfaces:**
     *   In the `domain.repository` package, create the repository **interfaces**.
-    *   `UserRepository.kt`: Must extend `JpaRepository` and include methods like `findByEmail`, `findByVerificationCode`, etc.
-    *   `RoleRepository.kt`: Must extend `JpaRepository` and include `findByNameIn`.
-    *   `RefreshTokenRepository.kt`, `UserProviderRepository.kt`.
+    *   `UserRepository.kt`: Must extend `JpaRepository` and include methods like `findBy_email`, `existsBy_email`, `findByVerificationCode`, and `findByPasswordResetToken`.
+    *   `RoleRepository.kt`: Must extend `JpaRepository`.
+    *   `RefreshTokenRepository.kt`: Must extend `JpaRepository`.
 
 ---
 
 ### Step 3: Implement the Infrastructure Layer
 
-1.  **Implement Repositories:**
-    *   In the `infrastructure.db.repository` package, create the Spring Data JPA implementations of the repository interfaces defined in the domain layer.
-2.  **Create Flyway Migrations:**
-    *   In `src/main/resources/db/migration`, create the necessary SQL migration scripts (`V1__...`, `V2__...`, etc.) to create all the required tables (`users`, `roles`, `user_roles`, etc.) for your PostgreSQL database.
-3.  **Implement the Email Service:**
-    *   In the `infrastructure.email` package, create an `EmailServiceImpl.kt` that implements the `EmailService` interface from the application layer. This class will use `JavaMailSender` and `Thymeleaf` to send styled HTML emails.
+1.  **Create Liquibase Migrations:**
+    *   In `src/main/resources/db/changelog`, create a master changelog file (`db.changelog-master.xml`).
+    *   Create individual XML changelog files for each schema change (e.g., `001-create-tables.xml`, `002-insert-roles.xml`).
+    *   Define your tables, columns, and constraints using Liquibase's XML format.
+2.  **Implement the Email Service:**
+    *   In the `infrastructure.email` package, create an `EmailServiceImpl.kt` that implements the `EmailService` interface. This class will use `JavaMailSender` and `Thymeleaf` to send styled HTML emails for both account verification and password resets.
+3.  **Implement Rate Limiting:**
+    *   Create a `RateLimitingInterceptor` that uses Bucket4j to track and limit requests by IP address.
+    *   Create a `WebConfig` class that implements `WebMvcConfigurer` to register the interceptor and apply it to your API endpoints.
 
 ---
 
 ### Step 4: Implement the Application Layer (The Use Cases)
 
 1.  **Define Service Interfaces:**
-    *   In the `application.service` package, define the service interfaces that represent the application's use cases (e.g., `UserService.kt`, `AuthService.kt`).
+    *   In the `application.service` package, define the service interfaces: `AuthService`, `UserService`, `AdminService`, and `RefreshTokenService`.
 2.  **Create DTOs:**
-    *   In the `application.dto` package, create all necessary Data Transfer Objects for handling API requests and responses (e.g., `LoginRequest.kt`, `UserResponse.kt`, `PasswordResetRequest.kt`).
+    *   In the `application.dto` package, create all necessary Data Transfer Objects: `SignupRequest`, `LoginRequest`, `ForgotPasswordRequest`, `ResetPasswordRequest`, `ChangePasswordRequest`, `UpdateUserRolesRequest`, `UserResponse`, and `MessageResponse`.
 3.  **Implement Services:**
-    *   In a sub-package of `application.service`, create the implementations of your service interfaces (e.g., `UserServiceImpl.kt`).
-    *   This is where the core business logic resides: registering users, verifying codes, linking accounts, etc. These services will depend on the repository **interfaces** from the domain layer.
+    *   Implement the service classes (`...Impl`). This is where the core business logic resides: registering users, handling logins, processing password resets, managing user accounts, and performing administrative actions.
 
 ---
 
 ### Step 5: Build the Presentation Layer (The API)
 
 1.  **Create Controllers:**
-    *   In the `presentation.controller` package, create your REST controllers (`AuthController`, `UserController`, `AdminController`, etc.).
+    *   In the `presentation.controller` package, create your REST controllers: `AuthController`, `UserController`, `AdminController`, and `HealthCheckController`.
 2.  **Define Endpoints:**
-    *   Implement all the API endpoints as defined in the PRD. These endpoints should be responsible for receiving HTTP requests, validating the input (DTOs), calling the appropriate methods on the service interfaces, and returning the correct HTTP response.
+    *   Implement all the API endpoints as defined in the PRD, including the new endpoints for password management, user self-service, and administration.
 3.  **Implement Exception Handling:**
-    *   Create a `GlobalExceptionHandler.kt` with the `@RestControllerAdvice` annotation to handle custom exceptions (`InvalidTokenException`, etc.) and return clean, user-friendly JSON error messages.
+    *   Create a `GlobalExceptionHandler.kt` with the `@RestControllerAdvice` annotation to handle exceptions and return clean JSON error messages.
+    *   Create a `CustomAuthenticationEntryPoint.kt` to handle unauthenticated requests to protected API endpoints, ensuring it returns a `401 Unauthorized` status with a JSON error message instead of an HTML login page.
 
 ---
 
@@ -97,18 +110,19 @@
 1.  **Implement `SecurityConfig.kt`:**
     *   Create the main security configuration file.
     *   Define two `SecurityFilterChain` beans with `@Order` to handle API and web traffic separately.
-    *   **API Chain (`@Order(1)`):** Configure it to be stateless, disable CSRF, and set up a custom `AuthenticationEntryPoint` to return `401` errors for unauthenticated API requests.
-    *   **Web Chain (`@Order(2)`):** Configure it for stateful, browser-based flows like OAuth2, with CSRF protection enabled.
+    *   **API Chain (`@Order(1)`):** Configure it to be stateless, disable CSRF, and set up the `CustomAuthenticationEntryPoint`.
+    *   **Web Chain (`@Order(2)`):** Configure it for stateful, browser-based flows like OAuth2.
 2.  **Implement `JwtAuthenticationFilter.kt`:**
     *   Create the custom JWT filter that extracts the token from the cookie, validates it, and uses the `UserDetailsService` to set the `Authentication` in the security context.
 3.  **Implement OAuth2 Handlers:**
-    *   Create the `CustomOAuth2UserService.kt` and the success/failure handlers for the OAuth2 login flow.
+    *   Create the `CustomOAuth2UserService` and the `OAuth2AuthenticationSuccessHandler` and `OAuth2AuthenticationFailureHandler` for the OAuth2 login flow.
+4.  **Google OAuth2 Login Endpoint:**
+    *   To initiate the Google OAuth2 login flow, direct the user's browser to the following endpoint: `/oauth2/authorization/google`. Spring Security will then automatically redirect the user to Google's authentication page.
 
 ---
 
 ### Step 7: Final Touches & Verification
 
-1.  **Update Documentation:** Ensure the `README.md` and `documentation.md` files are updated to reflect the final implementation.
-2.  **Test All Endpoints:** Use a tool like Postman to thoroughly test every API endpoint, including all success and failure cases (e.g., wrong password, invalid token, insufficient permissions).
+1.  **Update Documentation:** Ensure the `README.md` and `Kotlin-SB-Grad.md` files are updated to reflect the final implementation.
+2.  **Test All Endpoints:** Use a tool like Postman to thoroughly test every API endpoint, including all success and failure cases.
 3.  **Review and Refactor:** Review the entire codebase for adherence to Clean Architecture and SOLID principles. Refactor where necessary to improve clarity, maintainability, and security.
-

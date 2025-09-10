@@ -24,7 +24,7 @@ class CustomOAuth2UserService(
         val email = attributes["email"] as String
         val provider = UserProvider.valueOf(userRequest.clientRegistration.registrationId.uppercase())
 
-        val userOptional = userRepository.findByEmail(email)
+        val userOptional = userRepository.findBy_email(email)
         val user: User
 
         if (userOptional.isPresent) {
@@ -48,7 +48,7 @@ class CustomOAuth2UserService(
         val providerId = oAuth2User.name
 
         val newUser = User(
-            email = email,
+            _email = email,
             provider = provider,
             providerId = providerId,
             status = AccountStatus.ACTIVE // OAuth2 users are active by default

@@ -12,4 +12,11 @@ interface EmailService {
      * @param user The user to send the verification email to.
      */
     fun sendVerificationEmail(user: User)
+
+    /**
+     * Sends a password reset email to the user.
+     *
+     * @param user The user to send the password reset email to.
+     */
+    fun sendPasswordResetEmail(user: User)
 }

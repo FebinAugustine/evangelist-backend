@@ -7,7 +7,8 @@ import java.util.Optional
 
 @Repository
 interface UserRepository : JpaRepository<User, Long> {
-    fun findByEmail(email: String): Optional<User>
+    fun findBy_email(email: String): Optional<User>
     fun findByVerificationCode(code: String): Optional<User>
-    fun existsByEmail(email: String): Boolean
+    fun findByPasswordResetToken(token: String): Optional<User>
+    fun existsBy_email(email: String): Boolean
 }

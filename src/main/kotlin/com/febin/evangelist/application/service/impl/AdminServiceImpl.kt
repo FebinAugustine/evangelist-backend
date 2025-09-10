@@ -1,9 +1,13 @@
 package com.febin.evangelist.application.service.impl
 
+import com.febin.evangelist.application.dto.MessageResponse
 import com.febin.evangelist.application.dto.UpdateUserRolesRequest
 import com.febin.evangelist.application.dto.UserResponse
 import com.febin.evangelist.application.service.AdminService
+import com.febin.evangelist.domain.model.AccountStatus
+import com.febin.evangelist.domain.model.Role
 import com.febin.evangelist.domain.model.User
+import com.febin.evangelist.domain.repository.RefreshTokenRepository
 import com.febin.evangelist.domain.repository.RoleRepository
 import com.febin.evangelist.domain.repository.UserRepository
 import org.springframework.stereotype.Service
@@ -12,7 +16,8 @@ import org.springframework.transaction.annotation.Transactional
 @Service
 class AdminServiceImpl(
     private val userRepository: UserRepository,
-    private val roleRepository: RoleRepository
+    private val roleRepository: RoleRepository,
+    private val refreshTokenRepository: RefreshTokenRepository // Injected for deletion
 ) : AdminService {
 
     override fun getAllUsers(): List<UserResponse> {
@@ -20,17 +25,13 @@ class AdminServiceImpl(
     }
 
     override fun getUserById(id: Long): UserResponse {
-        val user = userRepository.findById(id).orElseThrow {
-            RuntimeException("Error: User not found.") // Replace with custom exception
-        }
+        val user = findUserById(id)
         return mapUserToResponse(user)
     }
 
     @Transactional
     override fun updateUserRoles(id: Long, request: UpdateUserRolesRequest): UserResponse {
-        val user = userRepository.findById(id).orElseThrow {
-            RuntimeException("Error: User not found.") // Replace with custom exception
-        }
+        val user = findUserById(id)
 
         val newRoles = roleRepository.findByNameIn(request.roles.toList()).toMutableSet()
         if (newRoles.size != request.roles.size) {
@@ -43,10 +44,52 @@ class AdminServiceImpl(
         return mapUserToResponse(updatedUser)
     }
 
+    override fun getAllRoles(): List<Role> {
+        return roleRepository.findAll()
+    }
+
+    @Transactional
+    override fun disableUser(id: Long): UserResponse {
+        val user = findUserById(id)
+        user.status = AccountStatus.DISABLED
+        val updatedUser = userRepository.save(user)
+        return mapUserToResponse(updatedUser)
+    }
+
+    @Transactional
+    override fun enableUser(id: Long): UserResponse {
+        val user = findUserById(id)
+        // A disabled user can be re-activated. An unverified user cannot be enabled via this endpoint.
+        if (user.status == AccountStatus.DISABLED) {
+            user.status = AccountStatus.ACTIVE
+        }
+        val updatedUser = userRepository.save(user)
+        return mapUserToResponse(updatedUser)
+    }
+
+    @Transactional
+    override fun deleteUser(id: Long): MessageResponse {
+        val user = findUserById(id)
+
+        // First, delete dependent entities
+        refreshTokenRepository.deleteByUser(user)
+
+        // Then, delete the user itself
+        userRepository.delete(user)
+
+        return MessageResponse("User with ID $id has been deleted successfully.")
+    }
+
+    private fun findUserById(id: Long): User {
+        return userRepository.findById(id).orElseThrow {
+            RuntimeException("Error: User not found.") // Replace with custom exception
+        }
+    }
+
     private fun mapUserToResponse(user: User): UserResponse {
         return UserResponse(
             id = user.id,
-            email = user.email,
+            email = user.username,
             status = user.status,
             provider = user.provider,
             roles = user.roles.map { it.name }.toSet()

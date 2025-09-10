@@ -14,7 +14,7 @@ class UserDetailsServiceImpl(
 
     @Transactional
     override fun loadUserByUsername(username: String): UserDetails {
-        return userRepository.findByEmail(username)
+        return userRepository.findBy_email(username)
             .orElseThrow { UsernameNotFoundException("User Not Found with email: $username") }
     }
 }

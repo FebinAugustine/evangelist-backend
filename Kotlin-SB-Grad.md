@@ -1,8 +1,8 @@
 # PRD: Kotlin Authentication Service
 
-**Author:** Gemini AI  
-**Version:** 1.0  
-**Status:** Blueprint
+**Author:** Febin Augustine  
+**Version:** 1.1 (Live)  
+**Status:** Implemented
 
 ---
 
@@ -26,24 +26,18 @@ This project will be built upon a foundation of modern software engineering prin
 
 The service will follow the principles of **Clean Architecture**. This means the codebase will be separated into distinct layers, with a strict dependency rule: dependencies can only point inwards. This decouples the core business logic from external concerns like the database, framework, and UI.
 
-*   **Domain Layer:** Contains the core business entities and logic (e.g., the `User` data class, business rules). It has zero dependencies on any other layer.
+*   **Domain Layer:** Contains the core business entities and logic (e.g., the `User` class, business rules). It has zero dependencies on any other layer.
 *   **Application Layer:** Contains the application-specific business logic (use cases). It orchestrates the flow of data between the domain and infrastructure layers.
 *   **Infrastructure Layer:** Contains the implementations of external concerns, such as database repositories (using Spring Data JPA), email services, and other third-party integrations.
 *   **Presentation Layer:** The outermost layer, containing the REST API controllers. It handles HTTP requests and responses and communicates with the Application Layer.
 
 ### 2.2. SOLID Principles
 
-The implementation will adhere to the SOLID principles to create a system that is robust and easy to maintain:
-
-*   **S**ingle Responsibility: Each class and function will have one, and only one, reason to change.
-*   **O**pen/Closed: Software entities will be open for extension but closed for modification.
-*   **L**iskov Substitution: Subtypes will be substitutable for their base types.
-*   **I**nterface Segregation: Clients will not be forced to depend on interfaces they do not use.
-*   **D**ependency Inversion: High-level modules will not depend on low-level modules. Both will depend on abstractions.
+The implementation will adhere to the SOLID principles to create a system that is robust and easy to maintain.
 
 ### 2.3. API Design
 
-The service will expose a **stateless RESTful API**. Authentication will be managed via JSON Web Tokens (JWTs) delivered in secure cookies, making it suitable for consumption by a wide range of clients (web SPAs, mobile apps, desktop apps) without being vulnerable to common web attacks like CSRF.
+The service will expose a **stateless RESTful API**. Authentication will be managed via JSON Web Tokens (JWTs) delivered in secure, HTTP-only cookies, making it suitable for consumption by a wide range of clients (web SPAs, mobile apps, desktop apps) without being vulnerable to common web attacks like CSRF.
 
 ---
 
@@ -57,7 +51,7 @@ The service will expose a **stateless RESTful API**. Authentication will be mana
 | **Database** | PostgreSQL | A powerful, open-source object-relational database system with a strong reputation for reliability, feature robustness, and performance. |
 | **Security** | Spring Security 6 | The industry standard for securing Spring applications, providing comprehensive and customizable authentication and authorization mechanisms. |
 | **Data Access** | Spring Data JPA | Simplifies data access by providing a repository abstraction layer, reducing the need for boilerplate data access code. |
-| **Migrations** | Flyway | Ensures that database schema changes are version-controlled, repeatable, and automated, which is critical for CI/CD pipelines. |
+| **Migrations** | Liquibase | Ensures that database schema changes are version-controlled, repeatable, and automated, which is critical for CI/CD pipelines. |
 | **Email** | JavaMailSender & Thymeleaf | A standard combination for sending rich, styled HTML emails for user communication like verification and password resets. |
 
 ---
@@ -72,8 +66,8 @@ This structure separates the project into the distinct architectural layers.
 ├── src/
 │   ├── main/
 │   │   ├── kotlin/
-│   │   │   └── com/example/auth/
-│   │   │       ├── AuthApplication.kt      // Main Spring Boot application class
+│   │   │   └── com/febin/evangelist/
+│   │   │       ├── EvangelistApplication.kt  // Main Spring Boot application class
 │   │   │       ├── domain/                   // Core business logic and models
 │   │   │       │   ├── model/              // E.g., User.kt, Role.kt, AccountStatus.kt
 │   │   │       │   └── repository/         // Repository INTERFACES (defined in the domain)
@@ -83,8 +77,7 @@ This structure separates the project into the distinct architectural layers.
 │   │   │       ├── infrastructure/           // Implementation of external concerns
 │   │   │       │   ├── config/             // E.g., SecurityConfig.kt
 │   │   │       │   ├── db/                 // Database-specific implementations
-│   │   │       │   │   ├── flyway/         // SQL-based migration scripts
-│   │   │       │   │   └── repository/     // Spring Data JPA implementation of repository interfaces
+│   │   │       │   │   └── changelog/      // Liquibase XML changelog files
 │   │   │       │   └── email/              // EmailService implementation
 │   │   │       └── presentation/             // The API layer
 │   │   │           └── controller/         // REST API controllers
@@ -103,8 +96,6 @@ This structure separates the project into the distinct architectural layers.
 
 ## 5. API Endpoint Definitions
 
-(The API contract remains the same as the Java/Maven version, providing a consistent interface for all clients.)
-
 ### 5.1. Authentication Endpoints
 
 | Endpoint | Method | Description |
@@ -112,23 +103,43 @@ This structure separates the project into the distinct architectural layers.
 | `/api/auth/signup` | `POST` | Registers a new user. The account will be `UNVERIFIED`. |
 | `/api/auth/verify` | `GET` | Verifies a user's account using a code sent via email. |
 | `/api/auth/login` | `POST` | Authenticates a user and returns secure session cookies. |
+| `/api/auth/refresh` | `POST` | Refreshes the access token using the `refresh_token` cookie. |
+| `/api/auth/logout` | `POST` | Logs out the user by invalidating and clearing session cookies. |
 
-### 5.2. User Account Management Endpoints
+### 5.1.1. Social Authentication
+
+In addition to local authentication, the service supports social login with Google.
+
+| Provider | Endpoint | Method | Description |
+| :--- | :--- | :--- | :--- |
+| Google | `/oauth2/authorization/google` | `GET` | Initiates the Google OAuth2 login flow. This is a browser-only endpoint. |
+
+### 5.2. Password Management Endpoints
+
+| Endpoint | Method | Description |
+| :--- | :--- | :--- |
+| `/api/auth/password/forgot` | `POST` | Initiates the password reset process by sending a 6-digit code to the user's email. |
+| `/api/auth/password/reset` | `POST` | Resets the user's password using the code from the email. |
+
+### 5.3. User Account Management Endpoints
 
 | Endpoint | Method | Description |
 | :--- | :--- | :--- |
 | `/api/users/me` | `GET` | **(Authenticated)** Retrieves the profile of the currently logged-in user. |
+| `/api/users/me/password` | `POST` | **(Authenticated)** Allows the logged-in user to change their own password. |
 | `/api/users/me` | `DELETE` | **(Authenticated)** Permanently deletes the currently logged-in user's account. |
 
-### 5.3. Admin Endpoints
+### 5.4. Admin Endpoints
 
 | Endpoint | Method | Description |
 | :--- | :--- | :--- |
 | `/api/admin/users` | `GET` | **(Admin Only)** Retrieves a list of all users. |
 | `/api/admin/users/{id}` | `GET` | **(Admin Only)** Retrieves the details of a specific user by their ID. |
+| `/api/admin/roles` | `GET` | **(Admin Only)** Retrieves a list of all available roles. |
 | `/api/admin/users/{id}/roles` | `PUT` | **(Admin Only)** Updates the roles for a specific user. |
-
-(And all other endpoints as previously defined...)
+| `/api/admin/users/{id}/disable` | `POST` | **(Admin Only)** Disables a user's account. |
+| `/api/admin/users/{id}/enable` | `POST` | **(Admin Only)** Enables a previously disabled user's account. |
+| `/api/admin/users/{id}/delete` | `DELETE` | **(Admin Only)** Permanently deletes a user and all their related data. |
 
 ---
 
@@ -141,10 +152,10 @@ This section explains how the different architectural layers collaborate to fulf
 1.  **Presentation Layer:**
     *   A `POST` request hits the `AuthController` at the `/api/auth/signup` endpoint.
     *   The controller validates the incoming `SignupRequest` DTO.
-    *   It calls the `registerUser` method on the `UserService` interface (from the Application Layer).
+    *   It calls the `registerUser` method on the `AuthService` interface (from the Application Layer).
 
 2.  **Application Layer:**
-    *   The `UserServiceImpl` (the implementation of the service interface) receives the call.
+    *   The `AuthServiceImpl` (the implementation of the service interface) receives the call.
     *   It orchestrates the use case: it calls the `UserRepository` interface (from the Domain Layer) to check if the user already exists.
     *   It creates a `User` domain object.
     *   It uses the `PasswordEncoder` (an infrastructure component injected via an interface) to hash the password.
@@ -152,7 +163,7 @@ This section explains how the different architectural layers collaborate to fulf
     *   It calls the `EmailService` interface to send the verification email.
 
 3.  **Infrastructure Layer:**
-    *   The `PostgresUserRepository` (the Spring Data JPA implementation of the `UserRepository` interface) translates the service call into a SQL `INSERT` statement and executes it against the PostgreSQL database.
+    *   The database repository (a Spring Data JPA implementation of the `UserRepository` interface) translates the service call into a SQL `INSERT` statement and executes it against the PostgreSQL database.
     *   The `SmtpEmailService` (the implementation of the `EmailService` interface) uses `JavaMailSender` to send the email.
 
 This strict separation ensures that the core logic in the Application Layer is completely independent of whether the database is PostgreSQL or MySQL, or whether emails are sent via SMTP or another service.
@@ -169,4 +180,3 @@ This strict separation ensures that the core logic in the Application Layer is c
 1.  Create the PostgreSQL database: `CREATE DATABASE authdb;`
 2.  Update the `spring.datasource.*` properties in `application.properties` with your PostgreSQL connection details.
 3.  Run the application using the Gradle wrapper command: `./gradlew bootRun`.
-

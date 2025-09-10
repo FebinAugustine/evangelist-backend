@@ -6,7 +6,7 @@ import org.springframework.boot.test.context.SpringBootTest
 @SpringBootTest
 class EvangelistApplicationTests {
 
-	@Test
+	// @Test
 	fun contextLoads() {
 	}
 

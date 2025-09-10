@@ -1,1 +1,59 @@
-package com.febin.evangelist.infrastructure.security\n\nimport com.febin.evangelist.domain.model.User\nimport io.jsonwebtoken.Claims\nimport io.jsonwebtoken.Jwts\nimport io.jsonwebtoken.security.Keys\nimport org.springframework.beans.factory.annotation.Value\nimport org.springframework.security.core.Authentication\nimport org.springframework.stereotype.Component\nimport java.util.*\nimport javax.crypto.SecretKey\n\n@Component\nclass JwtTokenProvider(\n    @Value(\"\${jwt.secret}\") private val jwtSecret: String,\n    @Value(\"\${jwt.expiration-ms}\") private val jwtExpirationMs: Long\n) {\n\n    private val key: SecretKey by lazy {\n        Keys.hmacShaKeyFor(Base64.getDecoder().decode(jwtSecret))\n    }\n\n    fun generateToken(authentication: Authentication): String {\n        val userPrincipal = authentication.principal as User\n        return generateToken(userPrincipal.email)\n    }\n\n    fun generateToken(email: String): String {\n        val now = Date()\n        val expiryDate = Date(now.time + jwtExpirationMs)\n\n        return Jwts.builder()\n            .setSubject(email)\n            .setIssuedAt(now)\n            .setExpiration(expiryDate)\n            .signWith(key)\n            .compact()\n    }\n\n    fun getEmailFromJWT(token: String): String {\n        val claims: Claims = Jwts.parserBuilder()\n            .setSigningKey(key)\n            .build()\n            .parseClaimsJws(token)\n            .body\n\n        return claims.subject\n    }\n\n    fun validateToken(authToken: String): Boolean {\n        try {\n            Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(authToken)\n            return true\n        } catch (ex: Exception) {\n            // Can be more specific with exceptions: MalformedJwtException, ExpiredJwtException, etc.\n        }\n        return false\n    }\n}\n
+package com.febin.evangelist.infrastructure.security
+
+import com.febin.evangelist.domain.model.User
+import io.jsonwebtoken.Claims
+import io.jsonwebtoken.Jwts
+import io.jsonwebtoken.security.Keys
+import org.springframework.beans.factory.annotation.Value
+import org.springframework.security.core.Authentication
+import org.springframework.stereotype.Component
+import java.util.*
+import javax.crypto.SecretKey
+
+@Component
+class JwtTokenProvider(
+    @Value("\${jwt.secret}") private val jwtSecret: String,
+    @Value("\${jwt.expiration-ms}") private val jwtExpirationMs: Long
+) {
+
+    private val key: SecretKey by lazy {
+        Keys.hmacShaKeyFor(Base64.getDecoder().decode(jwtSecret))
+    }
+
+    fun generateToken(authentication: Authentication): String {
+        val userPrincipal = authentication.principal as User
+        return generateToken(userPrincipal.username)
+    }
+
+    fun generateToken(username: String): String {
+        val now = Date()
+        val expiryDate = Date(now.time + jwtExpirationMs)
+
+        return Jwts.builder()
+            .subject(username)
+            .issuedAt(now)
+            .expiration(expiryDate)
+            .signWith(key)
+            .compact()
+    }
+
+    fun getUsernameFromJWT(token: String): String {
+        val claims: Claims = Jwts.parser()
+            .verifyWith(key)
+            .build()
+            .parseSignedClaims(token)
+            .payload
+
+        return claims.subject
+    }
+
+    fun validateToken(authToken: String): Boolean {
+        try {
+            Jwts.parser().verifyWith(key).build().parseSignedClaims(authToken)
+            return true
+        } catch (ex: Exception) {
+            // Can be more specific with exceptions: MalformedJwtException, ExpiredJwtException, etc.
+        }
+        return false
+    }
+}

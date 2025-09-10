@@ -1,1 +1,54 @@
-package com.febin.evangelist.application.service.impl\n\nimport com.febin.evangelist.application.service.RefreshTokenService\nimport com.febin.evangelist.domain.model.RefreshToken\nimport com.febin.evangelist.domain.model.User\nimport com.febin.evangelist.domain.repository.RefreshTokenRepository\nimport com.febin.evangelist.domain.repository.UserRepository\nimport org.springframework.beans.factory.annotation.Value\nimport org.springframework.stereotype.Service\nimport org.springframework.transaction.annotation.Transactional\nimport java.time.Instant\nimport java.util.*\n\n@Service\nclass RefreshTokenServiceImpl(\n    private val refreshTokenRepository: RefreshTokenRepository,\n    private val userRepository: UserRepository,\n    @Value(\"\${jwt.refresh-token.expiration-ms}\") private val refreshTokenExpirationMs: Long\n) : RefreshTokenService {\n\n    override fun findByToken(token: String): Optional<RefreshToken> {\n        return refreshTokenRepository.findByToken(token)\n    }\n\n    override fun createRefreshToken(user: User): RefreshToken {\n        val refreshToken = RefreshToken(\n            user = user,\n            token = UUID.randomUUID().toString(),\n            expiryDate = Instant.now().plusMillis(refreshTokenExpirationMs)\n        )\n        return refreshTokenRepository.save(refreshToken)\n    }\n\n    override fun verifyExpiration(token: RefreshToken): RefreshToken {\n        if (token.expiryDate.isBefore(Instant.now())) {\n            refreshTokenRepository.delete(token)\n            throw RuntimeException(\"${token.token} Refresh token was expired. Please make a new signin request\") // Replace with custom exception\n        }\n        return token\n    }\n\n    @Transactional\n    override fun deleteByUserId(userId: Long) {\n        val user = userRepository.findById(userId).orElseThrow {\n            RuntimeException(\"User not found with id: $userId\") // Replace with custom exception\n        }\n        refreshTokenRepository.deleteByUser(user)\n    }\n}\n
+package com.febin.evangelist.application.service.impl
+
+import com.febin.evangelist.application.service.RefreshTokenService
+import com.febin.evangelist.domain.model.RefreshToken
+import com.febin.evangelist.domain.model.User
+import com.febin.evangelist.domain.repository.RefreshTokenRepository
+import com.febin.evangelist.domain.repository.UserRepository
+import org.springframework.beans.factory.annotation.Value
+import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
+import java.time.Instant
+import java.util.*
+
+@Service
+class RefreshTokenServiceImpl(
+    private val refreshTokenRepository: RefreshTokenRepository,
+    private val userRepository: UserRepository,
+    @Value("\${jwt.refresh-token.expiration-ms}") private val refreshTokenExpirationMs: Long
+) : RefreshTokenService {
+
+    override fun findByToken(token: String): Optional<RefreshToken> {
+        return refreshTokenRepository.findByToken(token)
+    }
+
+    @Transactional
+    override fun createRefreshToken(user: User): RefreshToken {
+        // First, delete any existing token for this user to prevent duplicates.
+        refreshTokenRepository.deleteByUser(user)
+
+        // Then, create and save the new token.
+        val refreshToken = RefreshToken(
+            user = user,
+            token = UUID.randomUUID().toString(),
+            expiryDate = Instant.now().plusMillis(refreshTokenExpirationMs)
+        )
+        return refreshTokenRepository.save(refreshToken)
+    }
+
+    override fun verifyExpiration(token: RefreshToken): RefreshToken {
+        if (token.expiryDate.isBefore(Instant.now())) {
+            refreshTokenRepository.delete(token)
+            throw RuntimeException("\${token.token} Refresh token was expired. Please make a new signin request") // Replace with custom exception
+        }
+        return token
+    }
+
+    @Transactional
+    override fun deleteByUserId(userId: Long) {
+        val user = userRepository.findById(userId).orElseThrow {
+            RuntimeException("User not found with id: $userId") // Replace with custom exception
+        }
+        refreshTokenRepository.deleteByUser(user)
+    }
+}

@@ -1,1 +1,23 @@
-package com.febin.evangelist.infrastructure.security\n\nimport jakarta.servlet.http.HttpServletRequest\nimport jakarta.servlet.http.HttpServletResponse\nimport org.springframework.beans.factory.annotation.Value\nimport org.springframework.security.core.AuthenticationException\nimport org.springframework.security.web.authentication.SimpleUrlAuthenticationFailureHandler\nimport org.springframework.stereotype.Component\n\n@Component\nclass OAuth2AuthenticationFailureHandler(\n    @Value(\"\${app.oauth2.error-uri:http://localhost:3000/login?error=true}\") private val errorUri: String\n) : SimpleUrlAuthenticationFailureHandler() {\n\n    override fun onAuthenticationFailure(\n        request: HttpServletRequest,\n        response: HttpServletResponse,\n        exception: AuthenticationException\n    ) {\n        logger.error(\"OAuth2 Authentication failed: \${exception.message}\")\n        redirectStrategy.sendRedirect(request, response, errorUri)\n    }\n}\n
+package com.febin.evangelist.infrastructure.security
+
+import jakarta.servlet.http.HttpServletRequest
+import jakarta.servlet.http.HttpServletResponse
+import org.springframework.beans.factory.annotation.Value
+import org.springframework.security.core.AuthenticationException
+import org.springframework.security.web.authentication.SimpleUrlAuthenticationFailureHandler
+import org.springframework.stereotype.Component
+
+@Component
+class OAuth2AuthenticationFailureHandler(
+    @Value("\${app.oauth2.error-uri:http://localhost:3000/login?error=true}") private val errorUri: String
+) : SimpleUrlAuthenticationFailureHandler() {
+
+    override fun onAuthenticationFailure(
+        request: HttpServletRequest,
+        response: HttpServletResponse,
+        exception: AuthenticationException
+    ) {
+        logger.error("OAuth2 Authentication failed: ${exception.message}")
+        redirectStrategy.sendRedirect(request, response, errorUri)
+    }
+}

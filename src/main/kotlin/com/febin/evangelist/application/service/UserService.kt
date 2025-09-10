@@ -1,5 +1,6 @@
 package com.febin.evangelist.application.service
 
+import com.febin.evangelist.application.dto.ChangePasswordRequest
 import com.febin.evangelist.application.dto.MessageResponse
 import com.febin.evangelist.application.dto.UserResponse
 
@@ -20,4 +21,12 @@ interface UserService {
      * @return A message response indicating success.
      */
     fun deleteCurrentUser(): MessageResponse
+
+    /**
+     * Changes the password for the currently authenticated user.
+     *
+     * @param request The request containing the current and new passwords.
+     * @return A message response indicating success.
+     */
+    fun changePassword(request: ChangePasswordRequest): MessageResponse
 }

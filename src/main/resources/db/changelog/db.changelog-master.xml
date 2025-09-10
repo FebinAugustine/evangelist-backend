@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                      http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.27.xsd">
+
+    <!-- Include the changelog for creating the initial tables -->
+    <include file="db/changelog/001-create-initial-tables.xml"/>
+
+    <!-- Include the changelog for inserting the initial roles -->
+    <include file="db/changelog/002-insert-initial-roles.xml"/>
+
+    <!-- Include the changelog for adding password reset fields -->
+    <include file="db/changelog/003-add-password-reset-fields.xml"/>
+
+</databaseChangeLog>
